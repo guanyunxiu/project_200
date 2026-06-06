@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.core.cache import cache
 from django.db import transaction
 from datetime import datetime, date, timedelta
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Q, F
 from .models import Student, HourRecord
 from .serializers import StudentSerializer, StudentSimpleSerializer, HourRecordSerializer
 from apps.users.permissions import IsAdminOrCoach, IsAdmin, IsFinance
@@ -236,8 +236,8 @@ class HourRecordViewSet(viewsets.ModelViewSet):
         low_hours_students = Student.objects.filter(
             status='studying'
         ).filter(
-            models.Q(remaining_hours__lte=3) |
-            models.Q(remaining_hours__lte=models.F('total_hours') * 0.2)
+            Q(remaining_hours__lte=3) |
+            Q(remaining_hours__lte=F('total_hours') * 0.2)
         ).count()
         return Response({
             'total_records': total_records,

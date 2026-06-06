@@ -263,6 +263,14 @@ class ExamBookingViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         student_id = serializer.validated_data.get('student')
         schedule = serializer.validated_data.get('schedule')
+        
+        existing_booking = ExamBooking.objects.filter(
+            student_id=student_id,
+            schedule_id=schedule.id
+        ).exists()
+        if existing_booking:
+            raise serializers.ValidationError('该学员已预约此考试安排，请勿重复预约')
+        
         permission_check = ExamFee.objects.filter(
             student_id=student_id,
             subject=schedule.subject,
@@ -274,7 +282,6 @@ class ExamBookingViewSet(viewsets.ModelViewSet):
             operator=self.request.user,
             booking_type='admin'
         )
-        self._update_schedule_quota(booking.schedule, 1)
         if booking.status == 'approved':
             self._update_schedule_quota(booking.schedule, 1)
 

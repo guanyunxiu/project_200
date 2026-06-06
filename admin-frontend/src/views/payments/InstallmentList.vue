@@ -183,7 +183,7 @@
         </el-col>
       </el-row>
       <el-form-item label="开始日期" prop="start_date">
-        <el-date-picker v-model="addForm.start_date" type="date" style="width: 100%;" />
+        <el-date-picker v-model="addForm.start_date" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
       </el-form-item>
     </el-form>
     <template #footer>
