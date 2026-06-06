@@ -8,6 +8,14 @@ export const loginApi = (username, password) => {
   })
 }
 
+export const registerApi = (data) => {
+  return request({
+    url: '/auth/register_student',
+    method: 'post',
+    data
+  })
+}
+
 export const refreshTokenApi = (refresh) => {
   return request({
     url: '/auth/refresh',

@@ -24,7 +24,7 @@
       </el-col>
       <el-col :span="6">
         <el-card class="stat-card">
-          <div class="stat-icon" style="color: #F56C6C;"><CalendarCheck /></div>
+          <div class="stat-icon" style="color: #F56C6C;"><Calendar /></div>
           <div class="stat-value">{{ examStats.today_exams || 0 }}</div>
           <div class="stat-label">今日考试</div>
         </el-card>
@@ -91,7 +91,7 @@
 <script setup>
 import { ref, onMounted, markRaw } from 'vue'
 import * as echarts from 'echarts'
-import { UserFilled, School, Wallet, CalendarCheck } from '@element-plus/icons-vue'
+import { UserFilled, School, Wallet, Calendar } from '@element-plus/icons-vue'
 import { getStudentStats } from '@/api/students'
 import { getPaymentStats, getPaymentList } from '@/api/payments'
 import { getExamStats } from '@/api/exams'

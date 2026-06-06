@@ -37,8 +37,12 @@
         </van-button>
       </div>
     </van-form>
+    <div class="register-link">
+      <span>还没有账号？</span>
+      <span class="link" @click="goToRegister">立即注册</span>
+    </div>
     <div class="login-footer">
-      <p>如有疑问请联系客服</p>
+      <p>已有账号可直接登录：手机号/123456</p>
     </div>
   </div>
 </template>
@@ -67,6 +71,10 @@ const onSubmit = async (values) => {
   } finally {
     loading.value = false
   }
+}
+
+const goToRegister = () => {
+  router.push('/register')
 }
 </script>
 
@@ -112,6 +120,19 @@ const onSubmit = async (values) => {
   height: 48px;
   font-size: 18px;
   border-radius: 24px;
+}
+
+.register-link {
+  text-align: center;
+  margin-top: 20px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+}
+
+.register-link .link {
+  color: #fff;
+  font-weight: bold;
+  margin-left: 5px;
 }
 
 .login-footer {

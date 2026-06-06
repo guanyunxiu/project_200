@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { loginApi, getCurrentUserApi } from '@/api/auth'
-import { getStudentDetailApi } from '@/api/student'
+import { loginApi, registerApi, getCurrentUserApi } from '@/api/auth'
 
 export const useUserStore = defineStore('user', () => {
   const token = ref(localStorage.getItem('token') || '')
@@ -32,9 +31,18 @@ export const useUserStore = defineStore('user', () => {
     const res = await loginApi(username, password)
     setToken(res.access, res.refresh)
     setUserInfo(res.user)
-    if (res.user.student_id) {
-      const student = await getStudentDetailApi(res.user.student_id)
-      setStudentInfo(student)
+    if (res.student) {
+      setStudentInfo(res.student)
+    }
+    return res
+  }
+
+  const register = async (data) => {
+    const res = await registerApi(data)
+    setToken(res.access, res.refresh)
+    setUserInfo(res.user)
+    if (res.student) {
+      setStudentInfo(res.student)
     }
     return res
   }
@@ -42,10 +50,6 @@ export const useUserStore = defineStore('user', () => {
   const fetchUserInfo = async () => {
     const res = await getCurrentUserApi()
     setUserInfo(res)
-    if (res.student_id) {
-      const student = await getStudentDetailApi(res.student_id)
-      setStudentInfo(student)
-    }
     return res
   }
 
@@ -70,6 +74,7 @@ export const useUserStore = defineStore('user', () => {
     setUserInfo,
     setStudentInfo,
     login,
+    register,
     fetchUserInfo,
     logout
   }

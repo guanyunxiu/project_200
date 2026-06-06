@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
-from .serializers import UserSerializer, UserCreateSerializer, LoginSerializer, ChangePasswordSerializer
+from .serializers import UserSerializer, UserCreateSerializer, LoginSerializer, ChangePasswordSerializer, StudentRegisterSerializer
 from .permissions import IsAdmin
 
 
@@ -16,10 +16,12 @@ class AuthViewSet(viewsets.GenericViewSet):
             return LoginSerializer
         elif self.action == 'change_password':
             return ChangePasswordSerializer
+        elif self.action == 'register_student':
+            return StudentRegisterSerializer
         return UserSerializer
 
     def get_permissions(self):
-        if self.action in ['login', 'refresh']:
+        if self.action in ['login', 'refresh', 'register_student']:
             return [AllowAny()]
         return [IsAuthenticated()]
 
@@ -29,11 +31,29 @@ class AuthViewSet(viewsets.GenericViewSet):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
         refresh = RefreshToken.for_user(user)
-        return Response({
+        data = {
             'access': str(refresh.access_token),
             'refresh': str(refresh),
             'user': UserSerializer(user).data
-        })
+        }
+        if hasattr(user, 'student') and user.student:
+            from apps.students.serializers import StudentSerializer
+            data['student'] = StudentSerializer(user.student).data
+        return Response(data)
+
+    @action(methods=['post'], detail=False)
+    def register_student(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user, student = serializer.save()
+        refresh = RefreshToken.for_user(user)
+        from apps.students.serializers import StudentSerializer
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': UserSerializer(user).data,
+            'student': StudentSerializer(student).data
+        }, status=status.HTTP_201_CREATED)
 
     @action(methods=['post'], detail=False)
     def refresh(self, request):

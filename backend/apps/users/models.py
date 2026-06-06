@@ -7,6 +7,7 @@ class User(AbstractUser):
         ('admin', '管理员'),
         ('finance', '财务'),
         ('coach', '教练'),
+        ('student', '学员'),
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='admin', verbose_name='角色')
     phone = models.CharField(max_length=20, blank=True, null=True, verbose_name='手机号')

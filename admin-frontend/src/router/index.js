@@ -18,7 +18,7 @@ const routes = [
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('@/views/Dashboard.vue'),
-        meta: { title: '首页', icon: 'HomeFilled', roles: ['admin', 'finance', 'coach'] }
+        meta: { title: '首页', icon: 'House', roles: ['admin', 'finance', 'coach'] }
       },
       {
         path: 'students',
@@ -30,7 +30,7 @@ const routes = [
         path: 'packages',
         name: 'Packages',
         component: () => import('@/views/packages/PackageList.vue'),
-        meta: { title: '套餐管理', icon: 'PriceTag', roles: ['admin'] }
+        meta: { title: '套餐管理', icon: 'Goods', roles: ['admin'] }
       },
       {
         path: 'payments',
@@ -54,13 +54,13 @@ const routes = [
         path: 'exams',
         name: 'Exams',
         component: () => import('@/views/exams/ExamList.vue'),
-        meta: { title: '约考管理', icon: 'CalendarCheck', roles: ['admin', 'coach'] }
+        meta: { title: '约考管理', icon: 'Calendar', roles: ['admin', 'coach'] }
       },
       {
         path: 'exams/schedule',
         name: 'ExamSchedule',
         component: () => import('@/views/exams/ExamSchedule.vue'),
-        meta: { title: '考试安排', icon: 'SetUp', roles: ['admin'] }
+        meta: { title: '考试安排', icon: 'Setting', roles: ['admin'] }
       },
       {
         path: 'users',

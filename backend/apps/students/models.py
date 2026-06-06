@@ -20,6 +20,7 @@ class Student(models.Model):
         ('female', '女'),
     )
 
+    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True, related_name='student', verbose_name='关联账号')
     name = models.CharField(max_length=50, verbose_name='姓名')
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, verbose_name='性别')
     phone = models.CharField(max_length=20, unique=True, verbose_name='手机号')
@@ -32,7 +33,7 @@ class Student(models.Model):
     photo = models.ImageField(upload_to='students/photos/', blank=True, null=True, verbose_name='学员照片')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='studying', verbose_name='状态')
     package = models.ForeignKey(Package, on_delete=models.SET_NULL, null=True, blank=True, related_name='students', verbose_name='报名套餐')
-    coach = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, limit_choices_to={'role': 'coach'}, related_name='students', verbose_name='所属教练')
+    coach = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, limit_choices_to={'role': 'coach'}, related_name='coached_students', verbose_name='所属教练')
     total_hours = models.IntegerField(default=0, verbose_name='总课时')
     used_hours = models.IntegerField(default=0, verbose_name='已用课时')
     enroll_date = models.DateField(auto_now_add=True, verbose_name='报名日期')
