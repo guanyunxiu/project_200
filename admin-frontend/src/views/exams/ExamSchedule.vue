@@ -8,7 +8,7 @@
             <el-icon><Plus /></el-icon> 新增考场
           </el-button>
           <el-button type="success" @click="handleAddSchedule">
-            <el-icon><CalendarPlus /></el-icon> 新增考试安排
+            <el-icon><Plus /></el-icon> 新增考试安排
           </el-button>
         </el-col>
       </el-row>
@@ -186,7 +186,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, CalendarPlus } from '@element-plus/icons-vue'
+import { Plus } from '@element-plus/icons-vue'
 import {
   getExamRoomList, createExamRoom, updateExamRoom, deleteExamRoom,
   getExamScheduleList, createExamSchedule, updateExamSchedule, deleteExamSchedule,

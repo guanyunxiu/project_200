@@ -2,7 +2,7 @@ import request from '@/utils/request'
 
 export const loginApi = (username, password) => {
   return request({
-    url: '/auth/login',
+    url: '/auth/login/',
     method: 'post',
     data: { username, password }
   })
@@ -10,7 +10,7 @@ export const loginApi = (username, password) => {
 
 export const registerApi = (data) => {
   return request({
-    url: '/auth/register_student',
+    url: '/auth/register_student/',
     method: 'post',
     data
   })
@@ -18,7 +18,7 @@ export const registerApi = (data) => {
 
 export const refreshTokenApi = (refresh) => {
   return request({
-    url: '/auth/refresh',
+    url: '/auth/refresh/',
     method: 'post',
     data: { refresh }
   })
@@ -26,14 +26,14 @@ export const refreshTokenApi = (refresh) => {
 
 export const getCurrentUserApi = () => {
   return request({
-    url: '/auth/me',
+    url: '/auth/me/',
     method: 'get'
   })
 }
 
 export const changePasswordApi = (oldPassword, newPassword) => {
   return request({
-    url: '/auth/change_password',
+    url: '/auth/change_password/',
     method: 'post',
     data: { old_password: oldPassword, new_password: newPassword }
   })

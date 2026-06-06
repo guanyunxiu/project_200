@@ -2,7 +2,7 @@ import request from '@/utils/request'
 
 export const getExamRoomListApi = (params = {}) => {
   return request({
-    url: '/exams/rooms',
+    url: '/exams/rooms/',
     method: 'get',
     params
   })
@@ -10,7 +10,7 @@ export const getExamRoomListApi = (params = {}) => {
 
 export const getExamScheduleListApi = (params = {}) => {
   return request({
-    url: '/exams/schedules',
+    url: '/exams/schedules/',
     method: 'get',
     params
   })
@@ -18,7 +18,7 @@ export const getExamScheduleListApi = (params = {}) => {
 
 export const getAvailableSchedulesApi = (params = {}) => {
   return request({
-    url: '/exams/schedules/available_list',
+    url: '/exams/schedules/available_list/',
     method: 'get',
     params
   })
@@ -26,14 +26,14 @@ export const getAvailableSchedulesApi = (params = {}) => {
 
 export const getScheduleQuotaApi = (id) => {
   return request({
-    url: `/exams/schedules/${id}/quota_cache`,
+    url: `/exams/schedules/${id}/quota_cache/`,
     method: 'get'
   })
 }
 
 export const getBookingListApi = (params = {}) => {
   return request({
-    url: '/exams/bookings',
+    url: '/exams/bookings/',
     method: 'get',
     params
   })
@@ -41,7 +41,7 @@ export const getBookingListApi = (params = {}) => {
 
 export const selfBookExamApi = (data) => {
   return request({
-    url: '/exams/bookings/self_book',
+    url: '/exams/bookings/self_book/',
     method: 'post',
     data
   })
@@ -49,7 +49,7 @@ export const selfBookExamApi = (data) => {
 
 export const cancelBookingApi = (id) => {
   return request({
-    url: `/exams/bookings/${id}/cancel`,
+    url: `/exams/bookings/${id}/cancel/`,
     method: 'post'
   })
 }
