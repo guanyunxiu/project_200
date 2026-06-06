@@ -38,6 +38,9 @@ export const cancelExamBookingApi = (id) => {
   })
 }
 
+export const getBookingListApi = getExamBookingListApi
+export const cancelBookingApi = cancelExamBookingApi
+
 export const getExamFeeListApi = (params = {}) => {
   return request({
     url: '/exams/fees/',

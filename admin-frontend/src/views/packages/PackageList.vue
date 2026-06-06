@@ -213,7 +213,11 @@ const getTypeTag = (type) => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await getPackageList(filterForm)
+    const params = {}
+    if (filterForm.type) params.type = filterForm.type
+    if (filterForm.license_type) params.license_type = filterForm.license_type
+    if (filterForm.is_active !== '') params.is_active = filterForm.is_active
+    const res = await getPackageList(params)
     tableData.value = res.results || []
   } catch (e) {
     console.error(e)

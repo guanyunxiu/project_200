@@ -106,7 +106,7 @@
           <el-option
             v-for="item in installmentList"
             :key="item.id"
-            :label="`${item.months}期 - ¥${Number(item.monthly_amount).toFixed(2)}/期"
+            :label="`${item.months}期 - ¥${Number(item.monthly_amount).toFixed(2)}/期`"
             :value="item.id"
           />
         </el-select>
