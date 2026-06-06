@@ -1,5 +1,29 @@
 from rest_framework import serializers
-from .models import ExamRoom, ExamSchedule, ExamBooking
+from .models import ExamRoom, ExamSchedule, ExamBooking, ExamFeeRule, ExamFee
+from apps.students.serializers import StudentSimpleSerializer
+
+
+class ExamFeeRuleSerializer(serializers.ModelSerializer):
+    subject_display = serializers.CharField(source='get_subject_display', read_only=True)
+
+    class Meta:
+        model = ExamFeeRule
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class ExamFeeSerializer(serializers.ModelSerializer):
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    fee_type_display = serializers.CharField(source='get_fee_type_display', read_only=True)
+    subject_display = serializers.CharField(source='get_subject_display', read_only=True)
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    student_phone = serializers.CharField(source='student.phone', read_only=True)
+    operator_name = serializers.CharField(source='operator.real_name', read_only=True, allow_null=True)
+
+    class Meta:
+        model = ExamFee
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at', 'paid_at', 'operator']
 
 
 class ExamRoomSerializer(serializers.ModelSerializer):

@@ -157,3 +157,96 @@ export function selfBookExam(data) {
     data
   })
 }
+
+export function getExamFeeRuleList(params) {
+  return request({
+    url: '/exams/fee-rules/',
+    method: 'get',
+    params
+  })
+}
+
+export function createExamFeeRule(data) {
+  return request({
+    url: '/exams/fee-rules/',
+    method: 'post',
+    data
+  })
+}
+
+export function updateExamFeeRule(id, data) {
+  return request({
+    url: `/exams/fee-rules/${id}/`,
+    method: 'put',
+    data
+  })
+}
+
+export function deleteExamFeeRule(id) {
+  return request({
+    url: `/exams/fee-rules/${id}/`,
+    method: 'delete'
+  })
+}
+
+export function getActiveExamFeeRules() {
+  return request({
+    url: '/exams/fee-rules/active_list/',
+    method: 'get'
+  })
+}
+
+export function getExamFeeList(params) {
+  return request({
+    url: '/exams/fees/',
+    method: 'get',
+    params
+  })
+}
+
+export function createExamFee(data) {
+  return request({
+    url: '/exams/fees/',
+    method: 'post',
+    data
+  })
+}
+
+export function updateExamFee(id, data) {
+  return request({
+    url: `/exams/fees/${id}/`,
+    method: 'put',
+    data
+  })
+}
+
+export function deleteExamFee(id) {
+  return request({
+    url: `/exams/fees/${id}/`,
+    method: 'delete'
+  })
+}
+
+export function payExamFee(id, data) {
+  return request({
+    url: `/exams/fees/${id}/pay/`,
+    method: 'post',
+    data
+  })
+}
+
+export function getUnpaidExamFees(studentId) {
+  return request({
+    url: '/exams/fees/unpaid_by_student/',
+    method: 'get',
+    params: { student_id: studentId }
+  })
+}
+
+export function checkExamBookingPermission(data) {
+  return request({
+    url: '/exams/fees/check_booking_permission/',
+    method: 'post',
+    data
+  })
+}

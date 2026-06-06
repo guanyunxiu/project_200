@@ -42,6 +42,18 @@ const routes = [
     meta: { title: '自主约课', requiresAuth: true }
   },
   {
+    path: '/exam-fee',
+    name: 'ExamFee',
+    component: () => import('@/views/ExamFee.vue'),
+    meta: { title: '补考缴费', requiresAuth: true }
+  },
+  {
+    path: '/hours',
+    name: 'Hours',
+    component: () => import('@/views/Hours.vue'),
+    meta: { title: '我的课时', requiresAuth: true }
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('@/views/Profile.vue'),

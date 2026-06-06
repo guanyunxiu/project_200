@@ -4,16 +4,72 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.http import HttpResponse
 from django.core.cache import cache
-from django.db.models import Sum, Q
-from datetime import datetime, timedelta
+from django.db.models import Sum, Q, Count, Case, When, IntegerField, F
+from datetime import datetime, timedelta, date
 import uuid
 from openpyxl import Workbook
-from .models import Payment, InstallmentPlan, InstallmentRecord
+from .models import Payment, InstallmentPlan, InstallmentRecord, InstallmentScheme, PaymentReminder
 from .serializers import (
     PaymentSerializer, InstallmentPlanSerializer,
-    InstallmentRecordSerializer, StudentPaymentSummarySerializer
+    InstallmentRecordSerializer, StudentPaymentSummarySerializer,
+    InstallmentSchemeSerializer, PaymentReminderSerializer
 )
 from apps.users.permissions import IsAdminOrFinance, IsAdmin
+from apps.exams.models import ExamFee
+
+
+class InstallmentSchemeViewSet(viewsets.ModelViewSet):
+    queryset = InstallmentScheme.objects.all()
+    serializer_class = InstallmentSchemeSerializer
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdmin()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        return queryset.order_by('-id')
+
+    @action(methods=['get'], detail=False)
+    def active_list(self, request):
+        queryset = self.get_queryset().filter(is_active=True)
+        return Response(InstallmentSchemeSerializer(queryset, many=True).data)
+
+
+class PaymentReminderViewSet(viewsets.ModelViewSet):
+    queryset = PaymentReminder.objects.all()
+    serializer_class = PaymentReminderSerializer
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdminOrFinance()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        student_id = self.request.query_params.get('student_id')
+        installment_plan_id = self.request.query_params.get('installment_plan_id')
+        result = self.request.query_params.get('result')
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        if student_id:
+            queryset = queryset.filter(student_id=student_id)
+        if installment_plan_id:
+            queryset = queryset.filter(installment_plan_id=installment_plan_id)
+        if result:
+            queryset = queryset.filter(result=result)
+        if start_date:
+            queryset = queryset.filter(reminder_date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(reminder_date__lte=end_date)
+        return queryset.order_by('-id')
+
+    def perform_create(self, serializer):
+        serializer.save(operator=self.request.user)
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
@@ -194,38 +250,259 @@ class InstallmentPlanViewSet(viewsets.ModelViewSet):
             )
 
     @action(methods=['post'], detail=True)
+    def calculate_late_fees(self, request, pk=None):
+        plan = self.get_object()
+        for record in plan.records.filter(status='unpaid'):
+            record.calculate_late_fee()
+        plan.update_overdue_status()
+        return Response({'message': '滞纳金计算完成', 'total_late_fee': float(plan.total_late_fee)})
+
+    @action(methods=['post'], detail=True)
     def pay_period(self, request, pk=None):
         plan = self.get_object()
         period = int(request.data.get('period', 0))
-        record = plan.records.filter(period=period, status='unpaid').first()
+        record = plan.records.filter(period=period, status__in=['unpaid', 'overdue']).first()
         if not record:
             return Response({'error': '该期次不存在或已还款'}, status=status.HTTP_400_BAD_REQUEST)
+        record.calculate_late_fee()
+        total_amount = float(record.amount) + float(record.late_fee)
         payment_data = {
             'student': plan.student_id,
             'payment_type': 'installment',
             'payment_method': request.data.get('payment_method', 'wechat'),
-            'amount': record.amount,
+            'amount': total_amount,
             'total_amount': plan.total_amount,
-            'remaining_amount': plan.remaining_amount - record.amount,
+            'remaining_amount': plan.remaining_amount - float(record.amount),
             'installment_no': period,
             'status': 'confirmed'
         }
+        if plan.package_id:
+            payment_data['package'] = plan.package_id
         serializer = PaymentSerializer(data=payment_data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        return Response({'message': '还款成功', 'payment': serializer.data})
+        payment_view = PaymentViewSet()
+        payment_view.request = request
+        payment_view.perform_create(serializer)
+        return Response({'message': '还款成功', 'payment': serializer.data, 'late_fee': float(record.late_fee)})
 
     @action(methods=['get'], detail=False)
     def overdue_list(self, request):
         today = datetime.now().date()
         overdue_records = InstallmentRecord.objects.filter(
-            status='unpaid',
+            status__in=['unpaid', 'overdue'],
             due_date__lt=today
         ).select_related('plan', 'plan__student')
         for record in overdue_records:
             record.status = 'overdue'
+            record.calculate_late_fee()
             record.save()
         plans = InstallmentPlan.objects.filter(
             records__status='overdue'
         ).distinct()
         return Response(InstallmentPlanSerializer(plans, many=True).data)
+
+    @action(methods=['get'], detail=False)
+    def arrears_ledger(self, request):
+        today = date.today()
+        unpaid_records = InstallmentRecord.objects.filter(
+            status__in=['unpaid', 'overdue']
+        ).select_related('plan', 'plan__student')
+        arrears_list = []
+        for record in unpaid_records:
+            record.calculate_late_fee()
+            is_overdue = record.due_date < today
+            arrears_list.append({
+                'id': record.id,
+                'student_id': record.plan.student_id,
+                'student_name': record.plan.student.name,
+                'student_phone': record.plan.student.phone,
+                'plan_id': record.plan_id,
+                'period': record.period,
+                'amount': float(record.amount),
+                'late_fee': float(record.late_fee),
+                'total_due': float(record.amount) + float(record.late_fee),
+                'due_date': record.due_date.isoformat(),
+                'is_overdue': is_overdue,
+                'status': 'overdue' if is_overdue else record.status,
+                'late_fee_days': record.late_fee_days
+            })
+        return Response(arrears_list)
+
+
+class FinancialStatsViewSet(viewsets.ViewSet):
+    permission_classes = [IsAdminOrFinance]
+
+    @action(methods=['get'], detail=False)
+    def revenue_by_package(self, request):
+        from apps.packages.models import Package
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        payments_qs = Payment.objects.filter(status='confirmed')
+        if start_date:
+            payments_qs = payments_qs.filter(paid_at__date__gte=start_date)
+        if end_date:
+            payments_qs = payments_qs.filter(paid_at__date__lte=end_date)
+        packages = Package.objects.all()
+        result = []
+        for pkg in packages:
+            pkg_payments = payments_qs.filter(package=pkg)
+            total_revenue = pkg_payments.aggregate(Sum('amount'))['amount__sum'] or 0
+            student_count = pkg_payments.values('student').distinct().count()
+            result.append({
+                'package_id': pkg.id,
+                'package_name': pkg.name,
+                'package_type': pkg.type,
+                'package_type_display': pkg.get_type_display(),
+                'license_type': pkg.license_type,
+                'total_revenue': float(total_revenue),
+                'student_count': student_count,
+                'base_price': float(pkg.base_price)
+            })
+        return Response(result)
+
+    @action(methods=['get'], detail=False)
+    def installment_revenue(self, request):
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        payments_qs = Payment.objects.filter(
+            status='confirmed',
+            payment_type__in=['installment', 'down']
+        )
+        if start_date:
+            payments_qs = payments_qs.filter(paid_at__date__gte=start_date)
+        if end_date:
+            payments_qs = payments_qs.filter(paid_at__date__lte=end_date)
+        total_installment_revenue = payments_qs.aggregate(Sum('amount'))['amount__sum'] or 0
+        down_payments = payments_qs.filter(payment_type='down')
+        total_down = down_payments.aggregate(Sum('amount'))['amount__sum'] or 0
+        total_installment_paid = payments_qs.filter(payment_type='installment').aggregate(Sum('amount'))['amount__sum'] or 0
+        total_late_fee = InstallmentRecord.objects.filter(status='paid').aggregate(Sum('late_fee'))['late_fee__sum'] or 0
+        total_plans = InstallmentPlan.objects.count()
+        active_plans = InstallmentPlan.objects.filter(status__in=['unpaid', 'overdue']).count()
+        paid_plans = InstallmentPlan.objects.filter(status='paid').count()
+        total_remaining = InstallmentPlan.objects.filter(status__in=['unpaid', 'overdue']).aggregate(Sum('remaining_amount'))['remaining_amount__sum'] or 0
+        return Response({
+            'total_installment_revenue': float(total_installment_revenue),
+            'total_down_payments': float(total_down),
+            'total_installment_paid': float(total_installment_paid),
+            'total_late_fee': float(total_late_fee),
+            'total_plans': total_plans,
+            'active_plans': active_plans,
+            'paid_plans': paid_plans,
+            'total_remaining': float(total_remaining)
+        })
+
+    @action(methods=['get'], detail=False)
+    def exam_fee_revenue(self, request):
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        payments_qs = Payment.objects.filter(
+            status='confirmed',
+            payment_type='makeup_exam'
+        )
+        if start_date:
+            payments_qs = payments_qs.filter(paid_at__date__gte=start_date)
+        if end_date:
+            payments_qs = payments_qs.filter(paid_at__date__lte=end_date)
+        total_exam_fee = payments_qs.aggregate(Sum('amount'))['amount__sum'] or 0
+        exam_fees = ExamFee.objects.filter(status='paid')
+        if start_date:
+            exam_fees = exam_fees.filter(paid_at__date__gte=start_date)
+        if end_date:
+            exam_fees = exam_fees.filter(paid_at__date__lte=end_date)
+        by_subject = exam_fees.values('subject').annotate(
+            count=Count('id'),
+            total=Sum('amount')
+        ).order_by('subject')
+        subject_map = {1: '科目一', 2: '科目二', 3: '科目三', 4: '科目四'}
+        subject_stats = []
+        for item in by_subject:
+            subject_stats.append({
+                'subject': item['subject'],
+                'subject_name': subject_map.get(item['subject'], '未知'),
+                'count': item['count'],
+                'total': float(item['total'] or 0)
+            })
+        return Response({
+            'total_exam_fee': float(total_exam_fee),
+            'by_subject': subject_stats,
+            'unpaid_count': ExamFee.objects.filter(status='unpaid').count()
+        })
+
+    @action(methods=['get'], detail=False)
+    def course_renewal_revenue(self, request):
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        payments_qs = Payment.objects.filter(
+            status='confirmed',
+            payment_type='course_renewal'
+        )
+        if start_date:
+            payments_qs = payments_qs.filter(paid_at__date__gte=start_date)
+        if end_date:
+            payments_qs = payments_qs.filter(paid_at__date__lte=end_date)
+        total_renewal = payments_qs.aggregate(Sum('amount'))['amount__sum'] or 0
+        renewal_count = payments_qs.count()
+        return Response({
+            'total_renewal_revenue': float(total_renewal),
+            'renewal_count': renewal_count
+        })
+
+    @action(methods=['get'], detail=False)
+    def summary(self, request):
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        payments_qs = Payment.objects.filter(status='confirmed')
+        if start_date:
+            payments_qs = payments_qs.filter(paid_at__date__gte=start_date)
+        if end_date:
+            payments_qs = payments_qs.filter(paid_at__date__lte=end_date)
+        total_revenue = payments_qs.aggregate(Sum('amount'))['amount__sum'] or 0
+        by_type = payments_qs.values('payment_type').annotate(
+            total=Sum('amount'),
+            count=Count('id')
+        )
+        type_map = {
+            'full': '一次性全款',
+            'down': '首付',
+            'installment': '分期还款',
+            'makeup_exam': '补考费',
+            'course_renewal': '续课费'
+        }
+        type_stats = []
+        for item in by_type:
+            type_stats.append({
+                'payment_type': item['payment_type'],
+                'payment_type_name': type_map.get(item['payment_type'], item['payment_type']),
+                'total': float(item['total'] or 0),
+                'count': item['count']
+            })
+        return Response({
+            'total_revenue': float(total_revenue),
+            'payment_count': payments_qs.count(),
+            'by_payment_type': type_stats
+        })
+
+    @action(methods=['get'], detail=False)
+    def monthly_trend(self, request):
+        from django.db.models.functions import TruncMonth
+        months = int(request.query_params.get('months', 6))
+        end_date = date.today()
+        start_date = end_date - timedelta(days=months * 30)
+        monthly_data = Payment.objects.filter(
+            status='confirmed',
+            paid_at__date__gte=start_date
+        ).annotate(
+            month=TruncMonth('paid_at')
+        ).values('month').annotate(
+            total=Sum('amount'),
+            count=Count('id')
+        ).order_by('month')
+        result = []
+        for item in monthly_data:
+            result.append({
+                'month': item['month'].strftime('%Y-%m'),
+                'total': float(item['total'] or 0),
+                'count': item['count']
+            })
+        return Response(result)

@@ -36,9 +36,20 @@
               >
                 <div class="period-info">
                   <span class="period-no">第{{ record.period }}期</span>
-                  <span class="period-date">{{ record.due_date }}</span>
+                  <span class="period-date">到期日: {{ record.due_date }}</span>
+                  <span v-if="record.late_fee_days > 0" class="overdue-days">
+                    已逾期{{ record.late_fee_days }}天
+                  </span>
                 </div>
-                <div class="period-amount">¥{{ record.amount }}</div>
+                <div class="period-amount-wrapper">
+                  <div class="period-amount">¥{{ record.amount }}</div>
+                  <div v-if="record.late_fee > 0" class="late-fee">
+                    滞纳金: ¥{{ record.late_fee }}
+                  </div>
+                  <div v-if="record.late_fee > 0" class="total-due">
+                    合计: ¥{{ (parseFloat(record.amount) + parseFloat(record.late_fee)).toFixed(2) }}
+                  </div>
+                </div>
                 <div class="period-action">
                   <template v-if="record.status === 'paid'">
                     <van-tag type="success">已还款</van-tag>
@@ -166,10 +177,16 @@ const loadPaidPlans = async () => {
 }
 
 const handlePay = async (planId, period) => {
+  const plan = unpaidPlans.value.find(p => p.id === planId)
+  const record = plan?.records?.find(r => r.period === period)
+  let message = `确定要支付第${period}期的分期还款吗？`
+  if (record && record.late_fee > 0) {
+    message = `第${period}期还款详情:\n本金: ¥${record.amount}\n滞纳金: ¥${record.late_fee}\n合计: ¥${(parseFloat(record.amount) + parseFloat(record.late_fee)).toFixed(2)}`
+  }
   try {
     await showDialog({
       title: '确认还款',
-      message: `确定要支付第${period}期的分期还款吗？`,
+      message: message,
       confirmButtonText: '确认支付',
       cancelButtonText: '取消'
     })
@@ -251,6 +268,7 @@ onMounted(() => {
 .period-info {
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
 
 .period-no {
@@ -265,10 +283,37 @@ onMounted(() => {
   margin-top: 2px;
 }
 
+.overdue-days {
+  font-size: 12px;
+  color: #ff4d4f;
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+.period-amount-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-right: 12px;
+}
+
 .period-amount {
   font-size: 16px;
   font-weight: bold;
   color: #ff4d4f;
+}
+
+.late-fee {
+  font-size: 12px;
+  color: #ff9800;
+  margin-top: 2px;
+}
+
+.total-due {
+  font-size: 13px;
+  color: #f44336;
+  font-weight: bold;
+  margin-top: 2px;
 }
 
 .remaining-amount {

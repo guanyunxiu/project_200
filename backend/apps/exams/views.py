@@ -5,12 +5,121 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.core.cache import cache
 from django.db import transaction
 from datetime import datetime, date
-from .models import ExamRoom, ExamSchedule, ExamBooking
+import uuid
+from .models import ExamRoom, ExamSchedule, ExamBooking, ExamFeeRule, ExamFee
 from .serializers import (
     ExamRoomSerializer, ExamScheduleSerializer,
-    ExamScheduleSimpleSerializer, ExamBookingSerializer
+    ExamScheduleSimpleSerializer, ExamBookingSerializer,
+    ExamFeeRuleSerializer, ExamFeeSerializer
 )
 from apps.users.permissions import IsAdmin, IsAdminOrCoach
+from apps.payments.models import Payment
+from rest_framework import serializers
+
+
+class ExamFeeRuleViewSet(viewsets.ModelViewSet):
+    queryset = ExamFeeRule.objects.all()
+    serializer_class = ExamFeeRuleSerializer
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdmin()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        return queryset.order_by('subject')
+
+    @action(methods=['get'], detail=False)
+    def active_list(self, request):
+        queryset = self.get_queryset().filter(is_active=True)
+        return Response(ExamFeeRuleSerializer(queryset, many=True).data)
+
+
+class ExamFeeViewSet(viewsets.ModelViewSet):
+    queryset = ExamFee.objects.all()
+    serializer_class = ExamFeeSerializer
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'pay']:
+            return [IsAdminOrCoach()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        student_id = self.request.query_params.get('student_id')
+        subject = self.request.query_params.get('subject')
+        status = self.request.query_params.get('status')
+        fee_type = self.request.query_params.get('fee_type')
+        if student_id:
+            queryset = queryset.filter(student_id=student_id)
+        if subject:
+            queryset = queryset.filter(subject=subject)
+        if status:
+            queryset = queryset.filter(status=status)
+        if fee_type:
+            queryset = queryset.filter(fee_type=fee_type)
+        return queryset.order_by('-id')
+
+    def perform_create(self, serializer):
+        serializer.save(operator=self.request.user)
+
+    @action(methods=['post'], detail=True)
+    def pay(self, request, pk=None):
+        exam_fee = self.get_object()
+        if exam_fee.status != 'unpaid':
+            return Response({'error': '该账单状态不允许缴费'}, status=status.HTTP_400_BAD_REQUEST)
+        payment_method = request.data.get('payment_method', 'wechat')
+        with transaction.atomic():
+            payment = Payment.objects.create(
+                student=exam_fee.student,
+                payment_type='makeup_exam',
+                payment_method=payment_method,
+                amount=exam_fee.amount,
+                total_amount=exam_fee.amount,
+                remaining_amount=0,
+                status='confirmed',
+                receipt_no=f'EXAM{datetime.now().strftime("%Y%m%d")}{uuid.uuid4().hex[:6].upper()}',
+                operator=request.user
+            )
+            exam_fee.status = 'paid'
+            exam_fee.payment = payment
+            exam_fee.paid_at = datetime.now()
+            exam_fee.save()
+            cache.delete(f'student:{exam_fee.student_id}:payment_status')
+        return Response({
+            'message': '缴费成功',
+            'exam_fee': ExamFeeSerializer(exam_fee).data,
+            'payment_id': payment.id
+        })
+
+    @action(methods=['get'], detail=False)
+    def unpaid_by_student(self, request):
+        student_id = request.query_params.get('student_id')
+        queryset = self.get_queryset().filter(status='unpaid').select_related('student')
+        if student_id:
+            queryset = queryset.filter(student_id=student_id)
+        return Response(ExamFeeSerializer(queryset, many=True).data)
+
+    @action(methods=['post'], detail=False)
+    def check_booking_permission(self, request):
+        student_id = request.data.get('student_id')
+        subject = request.data.get('subject')
+        if not student_id or not subject:
+            return Response({'error': '缺少必要参数'}, status=status.HTTP_400_BAD_REQUEST)
+        has_unpaid = ExamFee.objects.filter(
+            student_id=student_id,
+            subject=subject,
+            status='unpaid'
+        ).exists()
+        return Response({
+            'can_book': not has_unpaid,
+            'has_unpaid_fees': has_unpaid,
+            'message': '存在未缴补考费，禁止约考' if has_unpaid else '可以约考'
+        })
 
 
 class ExamRoomViewSet(viewsets.ModelViewSet):
@@ -152,6 +261,15 @@ class ExamBookingViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def perform_create(self, serializer):
+        student_id = serializer.validated_data.get('student')
+        schedule = serializer.validated_data.get('schedule')
+        permission_check = ExamFee.objects.filter(
+            student_id=student_id,
+            subject=schedule.subject,
+            status='unpaid'
+        ).exists()
+        if permission_check:
+            raise serializers.ValidationError('该学员存在未缴补考费，禁止约考')
         booking = serializer.save(
             operator=self.request.user,
             booking_type='admin'
@@ -159,6 +277,27 @@ class ExamBookingViewSet(viewsets.ModelViewSet):
         self._update_schedule_quota(booking.schedule, 1)
         if booking.status == 'approved':
             self._update_schedule_quota(booking.schedule, 1)
+
+    def _create_exam_fee(self, booking, fee_type):
+        rule = ExamFeeRule.objects.filter(subject=booking.schedule.subject, is_active=True).first()
+        amount = rule.fee_amount if rule else 0
+        existing_fee = ExamFee.objects.filter(
+            student=booking.student,
+            subject=booking.schedule.subject,
+            exam_booking=booking,
+            status='unpaid'
+        ).first()
+        if not existing_fee and amount > 0:
+            ExamFee.objects.create(
+                student=booking.student,
+                subject=booking.schedule.subject,
+                fee_type=fee_type,
+                amount=amount,
+                exam_booking=booking,
+                status='unpaid',
+                operator=self.request.user,
+                remark=f'{booking.schedule.get_subject_display()} - {fee_type == "absent" and "缺考" or "考试未通过"}补考费'
+            )
 
     def _update_schedule_quota(self, schedule, delta):
         cache_key = f'exam:{schedule.id}:quota'
@@ -184,6 +323,13 @@ class ExamBookingViewSet(viewsets.ModelViewSet):
         schedule = ExamSchedule.objects.filter(id=schedule_id, status='open').first()
         if not schedule:
             return Response({'error': '该考试不开放预约'}, status=status.HTTP_400_BAD_REQUEST)
+        has_unpaid = ExamFee.objects.filter(
+            student_id=student_id,
+            subject=schedule.subject,
+            status='unpaid'
+        ).exists()
+        if has_unpaid:
+            return Response({'error': '存在未缴补考费，禁止约考'}, status=status.HTTP_400_BAD_REQUEST)
         cache_key = f'exam:{schedule.id}:quota'
         cached = cache.get(cache_key)
         if cached and cached['remaining'] <= 0:
@@ -208,6 +354,13 @@ class ExamBookingViewSet(viewsets.ModelViewSet):
         booking = self.get_object()
         if booking.status != 'pending':
             return Response({'error': '只能审核待审核的预约'}, status=status.HTTP_400_BAD_REQUEST)
+        has_unpaid = ExamFee.objects.filter(
+            student=booking.student,
+            subject=booking.schedule.subject,
+            status='unpaid'
+        ).exists()
+        if has_unpaid:
+            return Response({'error': '存在未缴补考费，禁止约考'}, status=status.HTTP_400_BAD_REQUEST)
         booking.status = 'approved'
         booking.save()
         return Response(ExamBookingSerializer(booking).data)
@@ -217,6 +370,7 @@ class ExamBookingViewSet(viewsets.ModelViewSet):
         booking = self.get_object()
         booking.status = 'absent'
         booking.save()
+        self._create_exam_fee(booking, 'absent')
         return Response(ExamBookingSerializer(booking).data)
 
     @action(methods=['post'], detail=True)
@@ -228,6 +382,8 @@ class ExamBookingViewSet(viewsets.ModelViewSet):
         if score is not None:
             booking.score = int(score)
         booking.save()
+        if not passed:
+            self._create_exam_fee(booking, 'failed')
         return Response(ExamBookingSerializer(booking).data)
 
     @action(methods=['post'], detail=True)

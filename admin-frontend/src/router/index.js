@@ -67,6 +67,48 @@ const routes = [
         name: 'Users',
         component: () => import('@/views/users/UserList.vue'),
         meta: { title: '用户管理', icon: 'UserFilled', roles: ['admin'] }
+      },
+      {
+        path: 'installment-schemes',
+        name: 'InstallmentSchemes',
+        component: () => import('@/views/payments/InstallmentSchemeList.vue'),
+        meta: { title: '分期方案', icon: 'Setting', roles: ['admin'] }
+      },
+      {
+        path: 'payment-reminders',
+        name: 'PaymentReminders',
+        component: () => import('@/views/payments/PaymentReminderList.vue'),
+        meta: { title: '催缴记录', icon: 'Bell', roles: ['admin', 'finance'] }
+      },
+      {
+        path: 'arrears-ledger',
+        name: 'ArrearsLedger',
+        component: () => import('@/views/payments/ArrearsLedger.vue'),
+        meta: { title: '欠费台账', icon: 'Document', roles: ['admin', 'finance'] }
+      },
+      {
+        path: 'exam-fee-rules',
+        name: 'ExamFeeRules',
+        component: () => import('@/views/exams/ExamFeeRuleList.vue'),
+        meta: { title: '补考费规则', icon: 'PriceTag', roles: ['admin'] }
+      },
+      {
+        path: 'exam-fees',
+        name: 'ExamFees',
+        component: () => import('@/views/exams/ExamFeeList.vue'),
+        meta: { title: '补考账单', icon: 'Tickets', roles: ['admin', 'finance', 'coach'] }
+      },
+      {
+        path: 'hour-records',
+        name: 'HourRecords',
+        component: () => import('@/views/students/HourRecordList.vue'),
+        meta: { title: '课时核销', icon: 'Clock', roles: ['admin', 'coach'] }
+      },
+      {
+        path: 'financial-stats',
+        name: 'FinancialStats',
+        component: () => import('@/views/payments/FinancialStats.vue'),
+        meta: { title: '财务统计', icon: 'DataLine', roles: ['admin', 'finance'] }
       }
     ]
   },

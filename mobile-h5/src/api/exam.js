@@ -1,13 +1,5 @@
 import request from '@/utils/request'
 
-export const getExamRoomListApi = (params = {}) => {
-  return request({
-    url: '/exams/rooms/',
-    method: 'get',
-    params
-  })
-}
-
 export const getExamScheduleListApi = (params = {}) => {
   return request({
     url: '/exams/schedules/',
@@ -16,22 +8,14 @@ export const getExamScheduleListApi = (params = {}) => {
   })
 }
 
-export const getAvailableSchedulesApi = (params = {}) => {
+export const getAvailableSchedulesApi = () => {
   return request({
     url: '/exams/schedules/available_list/',
-    method: 'get',
-    params
-  })
-}
-
-export const getScheduleQuotaApi = (id) => {
-  return request({
-    url: `/exams/schedules/${id}/quota_cache/`,
     method: 'get'
   })
 }
 
-export const getBookingListApi = (params = {}) => {
+export const getExamBookingListApi = (params = {}) => {
   return request({
     url: '/exams/bookings/',
     method: 'get',
@@ -47,9 +31,41 @@ export const selfBookExamApi = (data) => {
   })
 }
 
-export const cancelBookingApi = (id) => {
+export const cancelExamBookingApi = (id) => {
   return request({
     url: `/exams/bookings/${id}/cancel/`,
     method: 'post'
+  })
+}
+
+export const getExamFeeListApi = (params = {}) => {
+  return request({
+    url: '/exams/fees/',
+    method: 'get',
+    params
+  })
+}
+
+export const getUnpaidExamFeesApi = (studentId) => {
+  return request({
+    url: '/exams/fees/unpaid_by_student/',
+    method: 'get',
+    params: { student_id: studentId }
+  })
+}
+
+export const payExamFeeApi = (id, paymentMethod = 'wechat') => {
+  return request({
+    url: `/exams/fees/${id}/pay/`,
+    method: 'post',
+    data: { payment_method: paymentMethod }
+  })
+}
+
+export const checkExamBookingPermissionApi = (studentId, subject) => {
+  return request({
+    url: '/exams/fees/check_booking_permission/',
+    method: 'post',
+    data: { student_id: studentId, subject }
   })
 }

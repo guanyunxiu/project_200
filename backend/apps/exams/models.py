@@ -1,6 +1,66 @@
 from django.db import models
 from apps.students.models import Student
 from apps.users.models import User
+from apps.payments.models import Payment
+
+
+class ExamFeeRule(models.Model):
+    SUBJECT_CHOICES = (
+        (1, '科目一（理论）'),
+        (2, '科目二（场地）'),
+        (3, '科目三（道路）'),
+        (4, '科目四（安全文明）'),
+    )
+
+    subject = models.IntegerField(choices=SUBJECT_CHOICES, unique=True, verbose_name='考试科目')
+    fee_amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='补考费金额')
+    description = models.TextField(blank=True, null=True, verbose_name='费用说明')
+    is_active = models.BooleanField(default=True, verbose_name='是否启用')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'exam_fee_rules'
+        verbose_name = '补考费规则'
+        verbose_name_plural = verbose_name
+        ordering = ['subject']
+
+    def __str__(self):
+        return f'{self.get_subject_display()} - ¥{self.fee_amount}'
+
+
+class ExamFee(models.Model):
+    STATUS_CHOICES = (
+        ('unpaid', '待缴费'),
+        ('paid', '已缴费'),
+        ('cancelled', '已取消'),
+    )
+    FEE_TYPE_CHOICES = (
+        ('absent', '缺考'),
+        ('failed', '考试未通过'),
+    )
+
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='exam_fees', verbose_name='学员')
+    subject = models.IntegerField(choices=ExamFeeRule.SUBJECT_CHOICES, verbose_name='考试科目')
+    fee_type = models.CharField(max_length=20, choices=FEE_TYPE_CHOICES, verbose_name='费用类型')
+    amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='费用金额')
+    exam_booking = models.ForeignKey('ExamBooking', on_delete=models.CASCADE, related_name='exam_fees', verbose_name='关联约考记录', null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='unpaid', verbose_name='状态')
+    payment = models.OneToOneField(Payment, on_delete=models.SET_NULL, null=True, blank=True, related_name='exam_fee', verbose_name='关联缴费')
+    paid_at = models.DateTimeField(null=True, blank=True, verbose_name='缴费时间')
+    remark = models.TextField(blank=True, null=True, verbose_name='备注')
+    operator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='exam_fees', verbose_name='经办人')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'exam_fees'
+        verbose_name = '补考账单'
+        verbose_name_plural = verbose_name
+        ordering = ['-id']
+
+    def __str__(self):
+        return f'{self.student.name} - {self.get_subject_display()} - ¥{self.amount}'
 
 
 class ExamRoom(models.Model):
